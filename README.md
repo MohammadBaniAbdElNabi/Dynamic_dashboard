@@ -38,12 +38,12 @@ Follow the steps below to set up the project either on your local machine or in 
    - Click on **"Open with Codespaces"** to create a new Codespace instance.
 
 2. **Build the Environment**:
-   - Codespaces will automatically set up the environment by reading the `Dockerfile` and `devcontainer.json` configuration files.
+   - Codespaces will automatically set up the environment by reading the `devcontainer.json` configuration files.
 
 3. **Run the App**:
    - Open the terminal in Codespaces and run the following command to start the Streamlit app:
      ```bash
-     streamlit run app.py
+     streamlit run streamlit_app.py
      ```
    - The app will be available at the forwarded port (`http://localhost:8501`) inside Codespaces.
 
@@ -52,8 +52,8 @@ Follow the steps below to set up the project either on your local machine or in 
 1. **Clone the Repository**:
    - Clone the repository to your local machine:
      ```bash
-     git clone https://github.com/yourusername/real-time-monte-carlo-simulation.git
-     cd real-time-monte-carlo-simulation
+     git clone https://github.com/MohammadBaniAbdElNabi/Dynamic_dashboard.git
+     cd Dynamic_dashboard
      ```
 
 2. **Create a Virtual Environment** (Optional but recommended):
@@ -72,7 +72,7 @@ Follow the steps below to set up the project either on your local machine or in 
 4. **Run the App**:
    - Run the Streamlit app:
      ```bash
-     streamlit run app.py
+     streamlit run streamlit_app.py
      ```
    - The app will be available at `http://localhost:8501`.
 
@@ -80,7 +80,7 @@ Follow the steps below to set up the project either on your local machine or in 
 
 - `devcontainer.json`: GitHub Codespaces configuration file to build the development container.
 - `requirements.txt`: Lists all Python dependencies for the project.
-- `app.py`: Main Streamlit application file that contains the logic for fetching data, running Monte Carlo simulations, and rendering the dashboard.
+- `streamlit_app.py`: Main Streamlit application file that contains the logic for fetching data, running Monte Carlo simulations, and rendering the dashboard.
 
 ## How It Works
 
