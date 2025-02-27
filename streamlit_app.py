@@ -1,151 +1,85 @@
 import streamlit as st
 import pandas as pd
-import math
-from pathlib import Path
+import numpy as np
+import time
 
-# Set the title and favicon that appear in the Browser's tab bar.
-st.set_page_config(
-    page_title='GDP dashboard',
-    page_icon=':earth_americas:', # This is an emoji shortcode. Could be a URL too.
-)
+# Google Sheets Link
+SHEET_ID = "121CChNjuIxlQjVaQFFOjxkAvuMMpLHSE"
+SHEET_NAME = "Sheet1"
+SHEET_URL = f"https://docs.google.com/spreadsheets/d/121CChNjuIxlQjVaQFFOjxkAvuMMpLHSE/gviz/tq?tqx=out:csv&sheet=Sheet1"
 
-# -----------------------------------------------------------------------------
-# Declare some useful functions.
+# Function to fetch live data
+@st.cache_data(ttl=30)  # Refreshes every 30 sec
+def fetch_data():
+    df = pd.read_csv(SHEET_URL)
+    return df
 
-@st.cache_data
-def get_gdp_data():
-    """Grab GDP data from a CSV file.
+# Function to run Monte Carlo simulations
+def run_simulations(data, num_simulations):
+    results = []
+    for _ in range(num_simulations):
+        sample = data.sample(frac=1, replace=True)  # Bootstrap resampling
+        results.append(sample.iloc[:, 2].mean())  # Using 3rd column (Temperature °C)
+    return results
 
-    This uses caching to avoid having to read the file every time. If we were
-    reading from an HTTP endpoint instead of a file, it's a good idea to set
-    a maximum age to the cache with the TTL argument: @st.cache_data(ttl='1d')
-    """
+# Streamlit UI
+st.title("📊 Real-Time Monte Carlo Simulation Dashboard")
 
-    # Instead of a CSV on disk, you could read from an HTTP endpoint here too.
-    DATA_FILENAME = Path(__file__).parent/'data/gdp_data.csv'
-    raw_gdp_df = pd.read_csv(DATA_FILENAME)
+# Load Data
+df = fetch_data()
 
-    MIN_YEAR = 1960
-    MAX_YEAR = 2022
+if df.empty:
+    st.error("❌ No data found! Check your Google Sheets connection.")
+else:
+    st.success("✅ Data Loaded Successfully!")
 
-    # The data above has columns like:
-    # - Country Name
-    # - Country Code
-    # - [Stuff I don't care about]
-    # - GDP for 1960
-    # - GDP for 1961
-    # - GDP for 1962
-    # - ...
-    # - GDP for 2022
-    #
-    # ...but I want this instead:
-    # - Country Name
-    # - Country Code
-    # - Year
-    # - GDP
-    #
-    # So let's pivot all those year-columns into two: Year and GDP
-    gdp_df = raw_gdp_df.melt(
-        ['Country Code'],
-        [str(x) for x in range(MIN_YEAR, MAX_YEAR + 1)],
-        'Year',
-        'GDP',
-    )
+    # Show editable data table
+    st.subheader("📝 Edit Data Before Simulation")
+    edited_df = st.data_editor(df, num_rows="dynamic")  # Allows in-app editing
 
-    # Convert years from string to integers
-    gdp_df['Year'] = pd.to_numeric(gdp_df['Year'])
+    # Ensure correct column names
+    if "Timestamp" not in edited_df.columns or "Temperature (°C)" not in edited_df.columns:
+        st.error("❌ Required columns not found! Ensure 'Timestamp' & 'Temperature (°C)' exist.")
+    else:
+        # Convert Timestamp to datetime format
+        edited_df["Timestamp"] = pd.to_datetime(edited_df["Timestamp"])
 
-    return gdp_df
+        # Sort data by time
+        edited_df = edited_df.sort_values("Timestamp")
 
-gdp_df = get_gdp_data()
+        # Draw Temperature vs. Time Plot
+        st.subheader("📈 Temperature Trend Over Time")
+        st.line_chart(edited_df.set_index("Timestamp")["Temperature (°C)"])
 
-# -----------------------------------------------------------------------------
-# Draw the actual page
+        # User can adjust the number of simulations
+        st.subheader("🎛️ Choose Number of Simulations")
+        num_simulations = st.slider("Number of Simulations", min_value=100, max_value=5000, value=len(edited_df), step=100)
 
-# Set the title that appears at the top of the page.
-'''
-# :earth_americas: GDP dashboard
+        # Buttons for interaction
+        col1, col2 = st.columns(2)
+        run_simulation = col1.button("🚀 Run Simulation")
+        reset_data = col2.button("🔄 Reset Data")
 
-Browse GDP data from the [World Bank Open Data](https://data.worldbank.org/) website. As you'll
-notice, the data only goes to 2022 right now, and datapoints for certain years are often missing.
-But it's otherwise a great (and did I mention _free_?) source of data.
-'''
+        if reset_data:
+            st.cache_data.clear()  # Clears cached data
+            st.experimental_set_query_params(refresh="true")  # Forces app refresh
+            st.experimental_rerun()  # Workaround for auto-refresh
 
-# Add some spacing
-''
-''
+        if run_simulation:
+            st.subheader(f"🎲 Running {num_simulations} Simulations")
+            simulation_results = run_simulations(edited_df, num_simulations)
 
-min_value = gdp_df['Year'].min()
-max_value = gdp_df['Year'].max()
+            # Show results
+            st.line_chart(simulation_results)
 
-from_year, to_year = st.slider(
-    'Which years are you interested in?',
-    min_value=min_value,
-    max_value=max_value,
-    value=[min_value, max_value])
+            # Download Button
+            predictions_df = pd.DataFrame(simulation_results, columns=["Predicted Temperature (°C)"])
+            st.download_button(
+                label="📥 Download Predictions",
+                data=predictions_df.to_csv(index=False),
+                file_name="monte_carlo_predictions.csv",
+                mime="text/csv"
+            )
 
-countries = gdp_df['Country Code'].unique()
-
-if not len(countries):
-    st.warning("Select at least one country")
-
-selected_countries = st.multiselect(
-    'Which countries would you like to view?',
-    countries,
-    ['DEU', 'FRA', 'GBR', 'BRA', 'MEX', 'JPN'])
-
-''
-''
-''
-
-# Filter the data
-filtered_gdp_df = gdp_df[
-    (gdp_df['Country Code'].isin(selected_countries))
-    & (gdp_df['Year'] <= to_year)
-    & (from_year <= gdp_df['Year'])
-]
-
-st.header('GDP over time', divider='gray')
-
-''
-
-st.line_chart(
-    filtered_gdp_df,
-    x='Year',
-    y='GDP',
-    color='Country Code',
-)
-
-''
-''
-
-
-first_year = gdp_df[gdp_df['Year'] == from_year]
-last_year = gdp_df[gdp_df['Year'] == to_year]
-
-st.header(f'GDP in {to_year}', divider='gray')
-
-''
-
-cols = st.columns(4)
-
-for i, country in enumerate(selected_countries):
-    col = cols[i % len(cols)]
-
-    with col:
-        first_gdp = first_year[first_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-        last_gdp = last_year[last_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-
-        if math.isnan(first_gdp):
-            growth = 'n/a'
-            delta_color = 'off'
-        else:
-            growth = f'{last_gdp / first_gdp:,.2f}x'
-            delta_color = 'normal'
-
-        st.metric(
-            label=f'{country} GDP',
-            value=f'{last_gdp:,.0f}B',
-            delta=growth,
-            delta_color=delta_color
-        )
+        # Auto-refresh every 30 sec
+        time.sleep(30)
